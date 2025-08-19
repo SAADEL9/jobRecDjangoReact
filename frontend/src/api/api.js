@@ -3,9 +3,6 @@ import axios from 'axios';
 // Create axios instance with base URL
 const api = axios.create({
   baseURL: 'http://localhost:8000/api',  // Django backend URL
-  headers: {
-    'Content-Type': 'application/json',
-  },
   withCredentials: true,  // Important for sending cookies with requests
 });
 
@@ -28,9 +25,10 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const status = error.response?.status;
     
     // If error is 401 and we haven't tried to refresh yet
-    if (error.response.status === 401 && !originalRequest._retry) {
+    if (status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       
       try {
@@ -38,7 +36,7 @@ api.interceptors.response.use(
         const refreshToken = localStorage.getItem('refresh_token');
         if (refreshToken) {
           const response = await axios.post(
-            'http://localhost:8000/api/token/refresh/',
+            'http://localhost:8000/api/auth/token/refresh/',
             { refresh: refreshToken }
           );
           
@@ -52,12 +50,12 @@ api.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${access}`;
           return api(originalRequest);
         }
-      } catch (error) {
+      } catch (refreshError) {
         // If refresh fails, clear tokens and redirect to login
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         window.location.href = '/login';
-        return Promise.reject(error);
+        return Promise.reject(refreshError);
       }
     }
     
@@ -78,11 +76,14 @@ export const jobAPI = {
   createJob: (jobData) => api.post('/jobs/', jobData),
   updateJob: (id, jobData) => api.patch(`/jobs/${id}/`, jobData),
   deleteJob: (id) => api.delete(`/jobs/${id}/`),
-  applyToJob: (jobId, applicationData) => api.post(`/jobs/applications/`, { job: jobId, ...applicationData }),
+  applyToJob: (jobId, applicationData = {}) => api.post(`/jobs/applications/`, { job_id: jobId, ...applicationData }),
   getMyApplications: () => api.get('/jobs/applications/'),
   getApplication: (id) => api.get(`/jobs/applications/${id}/`),
-  updateApplication: (id, status) => api.patch(`/jobs/applications/${id}/`, { status }),
-  saveJob: (jobId) => api.post('/jobs/saved/', { job: jobId }),
+  updateApplication: (id, data) => {
+    const payload = typeof data === 'object' ? data : { status: data };
+    return api.patch(`/jobs/applications/${id}/`, payload);
+  },
+  saveJob: (jobId) => api.post('/jobs/saved/', { job_id: jobId }),
   getSavedJobs: () => api.get('/jobs/saved/'),
   removeSavedJob: (jobId) => api.delete(`/jobs/saved/${jobId}/`),
 };

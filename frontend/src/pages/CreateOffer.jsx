@@ -78,11 +78,7 @@ export default function CreateOffer() {
     setLoading(true);
 
     try {
-      if (!recruiterId) {
-        throw new Error("Recruiter ID not found");
-      }
-      // Send recruiterId in the body, not as a query param
-      await jobAPI.createJob({ ...formData, posted_by: recruiterId });
+      await jobAPI.createJob({ ...formData });
       setSuccess(true);
       setFormData({
         title: "",
