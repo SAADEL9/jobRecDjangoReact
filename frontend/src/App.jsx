@@ -40,7 +40,7 @@ const theme = createTheme({
 // A component that handles login status and renders the correct pages
 const AppContent = () => {
   const [authenticated, setAuthenticated] = React.useState(
-    !!localStorage.getItem("token")
+    !!localStorage.getItem("access_token")
   );
 
   // A simple function to handle login success

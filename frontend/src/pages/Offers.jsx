@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import api from "../axiosConfig";
+import { jobAPI } from "../api/api";
 import { useNavigate } from "react-router-dom";
 import { 
   Grid,
@@ -25,10 +25,10 @@ export default function Offers() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    api
-      .get("/api/offers")
+    jobAPI.getJobs()
       .then((res) => {
-        const data = Array.isArray(res.data) ? res.data : [];
+        const data = Array.isArray(res.data.results) ? res.data.results : 
+                    Array.isArray(res.data) ? res.data : [];
         setOffers(data);
         setFilteredOffers(data);
       })
@@ -50,7 +50,7 @@ export default function Offers() {
           offer.description?.toLowerCase().includes(lowercasedSearchTerm) ||
           offer.company?.toLowerCase().includes(lowercasedSearchTerm) ||
           offer.location?.toLowerCase().includes(lowercasedSearchTerm) ||
-          offer.type?.toLowerCase().includes(lowercasedSearchTerm)
+          offer.job_type?.toLowerCase().includes(lowercasedSearchTerm)
       );
       setFilteredOffers(newFilteredOffers);
     } else {
@@ -98,12 +98,20 @@ export default function Offers() {
                   </Typography>
 
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1 }}>
-                    {offer.type && (
+                    {offer.job_type && (
                       <Chip
                         icon={<WorkIcon />}
-                        label={offer.type}
+                        label={offer.job_type.replace('_', ' ')}
                         size="small"
                         color="primary"
+                        variant="outlined"
+                      />
+                    )}
+                    {offer.experience_level && (
+                      <Chip
+                        label={offer.experience_level.replace('_', ' ')}
+                        size="small"
+                        color="secondary"
                         variant="outlined"
                       />
                     )}
@@ -112,7 +120,7 @@ export default function Offers() {
                   <Box sx={{ mb: 1 }}>
                     <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
                       <LocationOnIcon sx={{ mr: 1, fontSize: 18 }} />
-                      {offer.location}
+                      {offer.location || 'Remote'}
                     </Typography>
                     {offer.company && (
                       <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center' }}>
