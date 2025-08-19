@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import api from "../axiosConfig";
+import { jobAPI } from "../api/api";
 import {
   Container,
   TextField,
@@ -12,7 +12,7 @@ import {
   Alert,
 } from "@mui/material";
 
-const JOB_TYPES = ["FULL_TIME", "PART_TIME", "CONTRACT", "INTERNSHIP"];
+const JOB_TYPES = ["full_time", "part_time", "contract", "internship", "temporary"];
 
 export default function EditOffer() {
   const { id } = useParams();
@@ -23,14 +23,19 @@ export default function EditOffer() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api.get(`/api/offers/${id}`)
+    jobAPI.getJob(id)
       .then(res => {
         const o = res.data || {};
         setForm({
           title: o.title || "",
           description: o.description || "",
           location: o.location || "",
-          type: o.type || "FULL_TIME",
+          job_type: o.job_type || "full_time",
+          company: o.company || "",
+          experience_level: o.experience_level || "mid",
+          requirements: o.requirements || "",
+          responsibilities: o.responsibilities || "",
+          skills_required: o.skills_required || "",
         });
       })
       .catch(() => setError("Failed to load offer"))
@@ -46,7 +51,7 @@ export default function EditOffer() {
     e.preventDefault();
     setSaving(true);
     setError("");
-    api.put(`/api/recruiter/offers/${id}`, form)
+    jobAPI.updateJob(id, form)
       .then(() => navigate(`/offers/${id}`))
       .catch(err => {
         const msg = err.response?.status === 403 ? "You are not allowed to edit this offer" : "Failed to save offer";
@@ -64,13 +69,39 @@ export default function EditOffer() {
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         <Box component="form" onSubmit={handleSubmit} display="flex" flexDirection="column" gap={2}>
           <TextField label="Title" name="title" value={form.title} onChange={handleChange} required fullWidth />
-          <TextField label="Description" name="description" value={form.description} onChange={handleChange} required fullWidth multiline minRows={4} />
+          <TextField label="Company Name" name="company" value={form.company} onChange={handleChange} required fullWidth />
           <TextField label="Location" name="location" value={form.location} onChange={handleChange} required fullWidth />
-          <TextField select label="Type" name="type" value={form.type} onChange={handleChange} required>
+          <TextField select label="Job Type" name="job_type" value={form.job_type} onChange={handleChange} required fullWidth>
             {JOB_TYPES.map((t) => (
-              <MenuItem key={t} value={t}>{t.replace("_", " ")}</MenuItem>
+              <MenuItem key={t} value={t}>{t.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</MenuItem>
             ))}
           </TextField>
+          <TextField
+            select
+            label="Experience Level"
+            name="experience_level"
+            value={form.experience_level}
+            onChange={handleChange}
+            required
+            fullWidth
+          >
+            <MenuItem value="entry">Entry Level</MenuItem>
+            <MenuItem value="mid">Mid Level</MenuItem>
+            <MenuItem value="senior">Senior Level</MenuItem>
+            <MenuItem value="lead">Lead</MenuItem>
+            <MenuItem value="manager">Manager</MenuItem>
+          </TextField>
+          <TextField label="Description" name="description" value={form.description} onChange={handleChange} required fullWidth multiline minRows={4} />
+          <TextField label="Requirements" name="requirements" value={form.requirements} onChange={handleChange} fullWidth multiline minRows={3} />
+          <TextField label="Responsibilities" name="responsibilities" value={form.responsibilities} onChange={handleChange} fullWidth multiline minRows={3} />
+          <TextField 
+            label="Required Skills"
+            name="skills_required"
+            value={form.skills_required}
+            onChange={handleChange}
+            fullWidth
+            helperText="Enter skills separated by commas, e.g. Python, React, SQL"
+          />
           <Box display="flex" gap={2}>
             <Button type="submit" variant="contained" disabled={saving}>Save</Button>
             <Button variant="outlined" onClick={() => navigate(-1)}>Cancel</Button>

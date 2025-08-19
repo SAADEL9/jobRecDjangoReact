@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.db.models import Count
 from .models import Job, Application, SavedJob
 from users.serializers import UserSerializer
 

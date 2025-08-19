@@ -1,59 +1,103 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-// You can create a CSS file for styling
+import { jobAPI } from '../api/api';
+import {
+  Container,
+  Box,
+  Typography,
+  CircularProgress,
+  Alert,
+  Card,
+  CardContent,
+  Grid,
+  Chip,
+  Stack
+} from '@mui/material';
 
-const CandidatApplications = ({ candidatId }) => {
+const CandidatApplications = () => {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const statusColor = {
+    applied: "info",
+    reviewed: "warning",
+    interview: "info",
+    accepted: "success",
+    rejected: "error"
+  };
+
   useEffect(() => {
-    const fetchApplications = async () => {
-      try {
-        const response = await axios.get(
-          `http://localhost:8080/api/applications/by-candidat/${candidatId}`
-        );
+    jobAPI.getMyApplications()
+      .then(response => {
         setApplications(response.data);
         setLoading(false);
-      } catch (err) {
+      })
+      .catch(err => {
         setError('Failed to fetch applications.');
         setLoading(false);
-      }
-    };
-
-    if (candidatId) {
-      fetchApplications();
-    }
-  }, [candidatId]);
+      });
+  }, []);
 
   if (loading) {
-    return <div className="loading-message">Loading applications...</div>;
+    return (
+      <Container maxWidth="lg">
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
   }
 
   if (error) {
-    return <div className="error-message">{error}</div>;
+    return (
+      <Container maxWidth="lg">
+        <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>
+      </Container>
+    );
   }
 
   if (applications.length === 0) {
-    return <div className="no-applications">You have not applied to any job offers yet.</div>;
+    return (
+      <Container maxWidth="lg">
+        <Alert severity="info" sx={{ mt: 2 }}>You have not applied to any job offers yet.</Alert>
+      </Container>
+    );
   }
 
   return (
-    <div className="candidat-applications-container">
-      <h2>My Job Applications</h2>
-      <ul className="application-list">
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        My Job Applications
+      </Typography>
+      <Grid container spacing={3}>
         {applications.map((app) => (
-          <li key={app.id} className="application-item">
-            <div className="application-info">
-              <h3>{app.jobOffer.title}</h3>
-              <p>Company: {app.jobOffer.company}</p>
-              <p>Status: <span className={`status-${app.status.toLowerCase()}`}>{app.status}</span></p>
-              <p>Applied on: {new Date(app.applicationDate).toLocaleDateString()}</p>
-            </div>
-          </li>
+          <Grid item xs={12} md={6} key={app.id}>
+            <Card>
+              <CardContent>
+                <Stack spacing={2}>
+                  <Typography variant="h6">
+                    {app.job.title}
+                  </Typography>
+                  <Typography variant="body1" color="text.secondary">
+                    {app.job.company}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Applied: {new Date(app.applied_at).toLocaleDateString()}
+                  </Typography>
+                  <Box>
+                    <Chip
+                      label={app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                      color={statusColor[app.status]}
+                      sx={{ mt: 1 }}
+                    />
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
         ))}
-      </ul>
-    </div>
+      </Grid>
+    </Container>
   );
 };
 

@@ -1,6 +1,18 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import { authAPI } from "../api/api";
+import axios from 'axios';
 import "../css/profile.css";
+import {
+  Container,
+  Box,
+  Typography,
+  TextField,
+  Button,
+  CircularProgress,
+  Alert,
+  Paper,
+  Grid
+} from '@mui/material';
 
 const Profile = () => {
   const [profile, setProfile] = useState({});

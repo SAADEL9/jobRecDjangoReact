@@ -1,8 +1,9 @@
-from rest_framework import generics, permissions, status, filters
+from rest_framework import generics, permissions, status, filters, serializers
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count, Q
+from django.utils import timezone
 from .models import Job, Application, SavedJob
 from .serializers import (
     JobSerializer, JobCreateUpdateSerializer,
@@ -12,7 +13,6 @@ from .serializers import (
 from users.models import User
 
 class JobListCreateView(generics.ListCreateAPIView):
-    serializer_class = JobSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = {
@@ -28,9 +28,7 @@ class JobListCreateView(generics.ListCreateAPIView):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        queryset = Job.objects.filter(is_active=True).annotate(
-            applications_count=Count('applications')
-        )
+        queryset = Job.objects.all()
         
         # Filter out expired jobs unless explicitly requested
         show_expired = self.request.query_params.get('show_expired', '').lower() == 'true'
@@ -39,27 +37,25 @@ class JobListCreateView(generics.ListCreateAPIView):
                 Q(deadline__isnull=True) | Q(deadline__gte=timezone.now().date())
             )
         
-        # Filter by saved jobs for the current user
-        saved_only = self.request.query_params.get('saved_only', '').lower() == 'true'
-        if saved_only and self.request.user.is_authenticated:
-            saved_job_ids = self.request.user.saved_jobs.values_list('job_id', flat=True)
-            queryset = queryset.filter(id__in=saved_job_ids)
-        
         # Filter by applications for the current user
         my_applications = self.request.query_params.get('my_applications', '').lower() == 'true'
         if my_applications and self.request.user.is_authenticated:
-            applied_job_ids = self.request.user.job_applications.values_list('job_id', flat=True)
-            queryset = queryset.filter(id__in=applied_job_ids)
+            if hasattr(self.request.user, 'job_applications'):
+                applied_job_ids = self.request.user.job_applications.values_list('job_id', flat=True)
+                queryset = queryset.filter(id__in=applied_job_ids)
         
         # Filter by jobs posted by the current user
         my_posted_jobs = self.request.query_params.get('my_posted_jobs', '').lower() == 'true'
         if my_posted_jobs and self.request.user.is_authenticated:
             queryset = queryset.filter(posted_by=self.request.user)
         
-        return queryset
+        # Add applications count annotation
+        queryset = queryset.annotate(applications_count=Count('applications'))
+        
+        return queryset.order_by('-created_at')
 
     def get_serializer_class(self):
-        if self.request.method == 'POST':
+        if self.request.method in ['POST', 'PUT', 'PATCH']:
             return JobCreateUpdateSerializer
         return JobSerializer
 
@@ -108,18 +104,18 @@ class ApplicationListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Application.objects.all()
+        queryset = Application.objects.select_related('job', 'applicant').all()
         
-        # If user is a recruiter, show applications for their posted jobs
-        if user.is_recruiter:
+        if hasattr(user, 'is_recruiter') and user.is_recruiter:
             return queryset.filter(job__posted_by=user)
-        # If user is a candidate, show only their applications
         return queryset.filter(applicant=user)
     
     def perform_create(self, serializer):
         job = serializer.validated_data['job']
         if Application.objects.filter(job=job, applicant=self.request.user).exists():
-            raise serializers.ValidationError("You have already applied to this job.")
+            raise serializers.ValidationError({
+                "job": ["You have already applied to this job."]
+            })
         serializer.save(applicant=self.request.user)
 
 class ApplicationRetrieveUpdateView(generics.RetrieveUpdateAPIView):

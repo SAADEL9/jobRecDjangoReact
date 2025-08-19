@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import api from "../axiosConfig";
+import { jobAPI, authAPI } from "../api/api";
 import {
   Box,
   Button,
@@ -26,34 +26,22 @@ import {
 
 export default function ApplicationsPage() {
   const [applications, setApplications] = useState([]);
-  const [currentId, setCurrentId] = useState("");
   const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState("");
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [feedback, setFeedback] = useState({ open: false, message: "", severity: "success" });
   const [confirmDialog, setConfirmDialog] = useState({ open: false, applicationId: null, status: "" });
+  const [userProfile, setUserProfile] = useState(null);
 
   const statusColor = useMemo(() => ({
-    pending: "default",
+    applied: "info",
+    reviewed: "warning",
+    interview: "info",
     accepted: "success",
     rejected: "error"
   }), []);
 
-  // Debug function to decode JWT token
-  const decodeJWT = (token) => {
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      console.log("JWT Payload:", payload);
-      return payload;
-    } catch (error) {
-      console.error("Invalid JWT token:", error);
-      return null;
-    }
-  };
-
-  // Fetch user data and determine role
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("access_token");
     if (!token) {
       setFeedback({
         open: true,
@@ -64,145 +52,30 @@ export default function ApplicationsPage() {
       return;
     }
 
-    // Debug: Check token content
-    const tokenPayload = decodeJWT(token);
-    console.log("Token authorities/roles:", tokenPayload?.authorities || tokenPayload?.roles);
-
-    api
-      .get("/api/user/me", {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+    Promise.all([
+      authAPI.getCurrentUser(),
+      jobAPI.getMyApplications()
+    ])
+      .then(([userRes, appRes]) => {
+        setUserProfile(userRes.data);
+        setApplications(appRes.data);
       })
-      .then((res) => {
-        if (!res.data) {
-          throw new Error("No user data received");
-        }
-        
-        console.log("User data:", res.data);
-        setCurrentId(res.data.id);
-        
-        const roles = Array.isArray(res.data.roles) ? res.data.roles : [];
-        
-        const hasRole = (roleName) => roles.some((r) => 
-          (typeof r === 'string' && r === roleName) || 
-          (r?.name === roleName)
-        );
-        
-        if (hasRole('ROLE_CANDIDAT')) {
-          setRole("by-candidat");
-        } else if (hasRole('ROLE_RECRUITER')) {
-          setRole("by-recruiter");
-        } else {
-          throw new Error("User has no valid role");
-        }
-      })
-      .catch((err) => {
-        console.error("Failed to fetch user roles:", err);
+      .catch(error => {
+        console.error("Error fetching data:", error);
         setFeedback({
           open: true,
-          message: err.response?.status === 403 
-            ? "You don't have permission to access this page. Please login with the correct account."
-            : "Failed to load user data: " + (err.response?.data?.message || err.message),
+          message: error.response?.status === 403 
+            ? "You don't have permission to access this page"
+            : "Failed to load applications",
           severity: "error"
         });
         
-        if (err.response?.status === 401 || err.response?.status === 403) {
-          localStorage.removeItem("token");
-        }
-        setLoading(false);
-      });
-  }, []);
-
-  // Fetch applications based on role
-  useEffect(() => {
-    if (!role || !currentId) {
-      return;
-    }
-    
-   const token = localStorage.getItem("token");
-console.log("Token content:", JSON.parse(atob(token.split('.')[1])));
-    if (!token) {
-      setFeedback({ 
-        open: true, 
-        message: "Please login to view applications", 
-        severity: "warning" 
-      });
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    let endpoint = '';
-    
-    if (role === 'by-candidat') {
-      endpoint = `/api/applications/by-candidat/${currentId}`;
-    } else if (role === 'by-recruiter') {
-      endpoint = `/api/applications/by-recruiter/${currentId}`;
-    } else {
-      console.error("Invalid role:", role);
-      setFeedback({
-        open: true,
-        message: "Invalid user role detected",
-        severity: "error"
-      });
-      setLoading(false);
-      return;
-    }
-
-    console.log("Fetching applications from:", endpoint);
-    
-    api
-      .get(endpoint, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      .then((res) => {
-        console.log("Applications response:", res.data);
-        setApplications(res.data || []);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch applications:", err);
-        
-        const errorMessage = err.response?.data?.message || err.message || "Failed to load applications";
-        
-        if (err.response?.status === 403) {
-          setFeedback({ 
-            open: true, 
-            message: "You don't have permission to view these applications. Please check your role.", 
-            severity: "error" 
-          });
-        } else if (err.response?.status === 401) {
-          setFeedback({
-            open: true,
-            message: "Your session has expired. Please login again.",
-            severity: "error"
-          });
-          localStorage.removeItem("token");
-        } else {
-          setFeedback({ 
-            open: true, 
-            message: `Error: ${errorMessage}`, 
-            severity: "error" 
-          });
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          localStorage.removeItem("access_token");
         }
       })
       .finally(() => setLoading(false));
-  }, [role, currentId]);
-useEffect(() => {
-  const verifyAuth = async () => {
-    try {
-      const response = await api.get('/api/applications/debug/auth');
-      console.log('Auth debug:', response.data);
-    } catch (error) {
-      console.error('Auth debug error:', error);
-    }
-  };
-  verifyAuth();
-}, []);
+  }, []);
   const openConfirmDialog = (applicationId, newStatus) => {
     setConfirmDialog({
       open: true,
@@ -211,87 +84,150 @@ useEffect(() => {
     });
   };
 
-  const handleUpdateStatus = async () => {
-    const { applicationId, status: newStatus } = confirmDialog;
-    
+  const handleStatusChange = async (applicationId, newStatus) => {
+    setConfirmDialog({ open: false, applicationId: null, status: "" });
+    setActionLoadingId(applicationId);
+
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setFeedback({ 
-          open: true, 
-          message: "Please login to perform this action", 
-          severity: "error" 
-        });
-        return;
-      }
-
-      setActionLoadingId(applicationId);
+      await jobAPI.updateApplication(applicationId, { status: newStatus });
       
-      await api.put(`/api/applications/${applicationId}/status`, null, {
-        params: { newStatus },
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
       // Update local state
-      setApplications((prev) =>
-        (prev || []).map((a) => 
-          a.id === applicationId ? { ...a, status: newStatus } : a
-        )
-      );
+      setApplications(prev => prev.map(app => 
+        app.id === applicationId ? { ...app, status: newStatus } : app
+      ));
 
-      setFeedback({ 
-        open: true, 
-        message: `Application ${newStatus} successfully`, 
-        severity: "success" 
+      setFeedback({
+        open: true,
+        message: "Application status updated successfully",
+        severity: "success"
       });
-
-    } catch (err) {
-      console.error("Failed to update status:", err);
-      const errorMessage = err.response?.data?.message || "Failed to update status";
-      setFeedback({ 
-        open: true, 
-        message: errorMessage, 
-        severity: "error" 
+    } catch (error) {
+      console.error("Error updating status:", error);
+      setFeedback({
+        open: true,
+        message: "Failed to update application status",
+        severity: "error"
       });
     } finally {
       setActionLoadingId(null);
-      setConfirmDialog({ open: false, applicationId: null, status: "" });
     }
   };
 
-  const formatDate = (dateString) => {
-    return dateString ? new Date(dateString).toLocaleDateString() : "";
-  };
+  if (loading) {
+    return (
+      <Container maxWidth="lg">
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
+  }
 
-  const getPageTitle = () => {
-    if (role === "by-recruiter") return "Applications to Your Job Offers";
-    if (role === "by-candidat") return "My Applications";
-    return "Applications";
-  };
+  return (
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        {userProfile?.user_type === 'recruiter' ? 'Manage Applications' : 'My Applications'}
+      </Typography>
 
-  const getTableHeaders = () => {
-    const baseHeaders = [
-      "#",
-      "Job Title",
-      "Location", 
-      "Type",
-      "Applied On",
-      "Status"
-    ];
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Job Title</TableCell>
+              <TableCell>Company</TableCell>
+              <TableCell>Applied Date</TableCell>
+              <TableCell>Status</TableCell>
+              {userProfile?.user_type === 'recruiter' && <TableCell>Actions</TableCell>}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {applications.map((app) => (
+              <TableRow key={app.id}>
+                <TableCell>{app.job.title}</TableCell>
+                <TableCell>{app.job.company}</TableCell>
+                <TableCell>{new Date(app.applied_at).toLocaleDateString()}</TableCell>
+                <TableCell>
+                  <Chip 
+                    label={app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                    color={statusColor[app.status]}
+                  />
+                </TableCell>
+                {userProfile?.user_type === 'recruiter' && (
+                  <TableCell>
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        size="small"
+                        disabled={app.status === 'reviewed' || actionLoadingId === app.id}
+                        onClick={() => openConfirmDialog(app.id, 'reviewed')}
+                      >
+                        Mark as Reviewed
+                      </Button>
+                      <Button
+                        size="small"
+                        color="success"
+                        disabled={app.status === 'accepted' || actionLoadingId === app.id}
+                        onClick={() => openConfirmDialog(app.id, 'accepted')}
+                      >
+                        Accept
+                      </Button>
+                      <Button
+                        size="small"
+                        color="error"
+                        disabled={app.status === 'rejected' || actionLoadingId === app.id}
+                        onClick={() => openConfirmDialog(app.id, 'rejected')}
+                      >
+                        Reject
+                      </Button>
+                    </Stack>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+            {applications.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={userProfile?.user_type === 'recruiter' ? 5 : 4} align="center">
+                  No applications found
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
-    if (role === "by-recruiter") {
-      return [
-        ...baseHeaders,
-        "Candidate Name",
-        "Actions"
-      ];
-    }
+      <Snackbar
+        open={feedback.open}
+        autoHideDuration={6000}
+        onClose={() => setFeedback(prev => ({ ...prev, open: false }))}
+      >
+        <Alert severity={feedback.severity} onClose={() => setFeedback(prev => ({ ...prev, open: false }))}>
+          {feedback.message}
+        </Alert>
+      </Snackbar>
 
-    return baseHeaders;
-  };
+      <Dialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, applicationId: null, status: "" })}
+      >
+        <DialogTitle>Confirm Status Change</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to mark this application as {confirmDialog.status}?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDialog({ open: false, applicationId: null, status: "" })}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={() => handleStatusChange(confirmDialog.applicationId, confirmDialog.status)}
+            autoFocus
+          >
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Container>
+  );
 
   if (loading) {
     return (

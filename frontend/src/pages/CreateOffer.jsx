@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import { 
   Container,
   Paper,
@@ -12,12 +11,14 @@ import {
   CircularProgress
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { authAPI, jobAPI } from '../api/api';
 
 const jobTypes = [
-  { value: 'FULL_TIME', label: 'Full Time' },
-  { value: 'PART_TIME', label: 'Part Time' },
-  { value: 'CONTRACT', label: 'Contract' },
-  { value: 'INTERNSHIP', label: 'Internship' },
+  { value: 'full_time', label: 'Full Time' },
+  { value: 'part_time', label: 'Part Time' },
+  { value: 'contract', label: 'Contract' },
+  { value: 'internship', label: 'Internship' },
+  { value: 'temporary', label: 'Temporary' },
 ];
 
 export default function CreateOffer() {
@@ -25,7 +26,12 @@ export default function CreateOffer() {
     title: "",
     description: "",
     location: "",
-    type: "FULL_TIME"
+    job_type: "full_time",
+    company: "",
+    experience_level: "mid",
+    requirements: "",
+    responsibilities: "",
+    skills_required: ""
   });
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -33,7 +39,7 @@ export default function CreateOffer() {
   const [recruiterId, setRecruiterId] = useState("");
   const navigate = useNavigate();
 
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("access_token");
   const headers = { Authorization: `Bearer ${token}` };
 
   useEffect(() => {
@@ -41,12 +47,21 @@ export default function CreateOffer() {
       navigate('/login');
       return;
     }
-    // Fetch recruiter ID
-    axios.get("/api/user/me", { headers })
+    // Fetch user profile
+    authAPI.getCurrentUser()
       .then(res => {
-        setRecruiterId(res.data.id || res.data.recruiterId || "");
+        const userData = res.data;
+        if (userData.user_type !== 'recruiter') {
+          setError('Only recruiters can create job offers');
+          navigate('/');
+          return;
+        }
+        setRecruiterId(userData.id);
       })
-      .catch(() => setError("Failed to fetch user data"));
+      .catch(() => {
+        setError('Failed to fetch user data');
+        navigate('/login');
+      });
   }, [token, navigate]);
 
   const handleChange = (e) => {
@@ -67,17 +82,18 @@ export default function CreateOffer() {
         throw new Error("Recruiter ID not found");
       }
       // Send recruiterId in the body, not as a query param
-      await axios.post(
-        "/api/recruiter/offers",
-        { ...formData, recruiterId },
-        { headers }
-      );
+      await jobAPI.createJob({ ...formData, posted_by: recruiterId });
       setSuccess(true);
       setFormData({
         title: "",
         description: "",
         location: "",
-        type: "FULL_TIME"
+        job_type: "full_time",
+        company: "",
+        experience_level: "mid",
+        requirements: "",
+        responsibilities: "",
+        skills_required: ""
       });
       setTimeout(() => navigate('/'), 2000);
     } catch (err) {
@@ -120,6 +136,16 @@ export default function CreateOffer() {
 
           <TextField
             fullWidth
+            label="Company Name"
+            name="company"
+            value={formData.company}
+            onChange={handleChange}
+            required
+            margin="normal"
+          />
+
+          <TextField
+            fullWidth
             label="Location"
             name="location"
             value={formData.location}
@@ -132,10 +158,11 @@ export default function CreateOffer() {
             select
             fullWidth
             label="Job Type"
-            name="type"
-            value={formData.type}
+            name="job_type"
+            value={formData.job_type}
             onChange={handleChange}
             margin="normal"
+            required
           >
             {jobTypes.map((option) => (
               <MenuItem key={option.value} value={option.value}>
@@ -145,8 +172,25 @@ export default function CreateOffer() {
           </TextField>
 
           <TextField
+            select
             fullWidth
-            label="Description"
+            label="Experience Level"
+            name="experience_level"
+            value={formData.experience_level}
+            onChange={handleChange}
+            margin="normal"
+            required
+          >
+            <MenuItem value="entry">Entry Level</MenuItem>
+            <MenuItem value="mid">Mid Level</MenuItem>
+            <MenuItem value="senior">Senior Level</MenuItem>
+            <MenuItem value="lead">Lead</MenuItem>
+            <MenuItem value="manager">Manager</MenuItem>
+          </TextField>
+
+          <TextField
+            fullWidth
+            label="Job Description"
             name="description"
             value={formData.description}
             onChange={handleChange}
@@ -154,6 +198,38 @@ export default function CreateOffer() {
             multiline
             rows={4}
             margin="normal"
+          />
+
+          <TextField
+            fullWidth
+            label="Requirements"
+            name="requirements"
+            value={formData.requirements}
+            onChange={handleChange}
+            multiline
+            rows={3}
+            margin="normal"
+          />
+
+          <TextField
+            fullWidth
+            label="Responsibilities"
+            name="responsibilities"
+            value={formData.responsibilities}
+            onChange={handleChange}
+            multiline
+            rows={3}
+            margin="normal"
+          />
+
+          <TextField
+            fullWidth
+            label="Required Skills"
+            name="skills_required"
+            value={formData.skills_required}
+            onChange={handleChange}
+            margin="normal"
+            helperText="Enter skills separated by commas, e.g. Python, React, SQL"
           />
 
           <Button

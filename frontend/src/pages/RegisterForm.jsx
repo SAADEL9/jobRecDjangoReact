@@ -1,20 +1,32 @@
 import React, { useState } from "react";
 import { authAPI } from '../api/api';
 import { Link, useNavigate } from "react-router-dom";
+import Box from '@mui/material/Box';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import Typography from '@mui/material/Typography';
+import Alert from '@mui/material/Alert';
+import Container from '@mui/material/Container';
+import Paper from '@mui/material/Paper';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
 
 const RegisterForm = () => {
   const [formData, setFormData] = useState({
-  email: "",
-  password: "",
-  password2: "",
-  user_type: "candidate",
-  first_name: "",
-  last_name: "",
+    email: "",
+    password: "",
+    password2: "",
+    user_type: "candidate",
+    first_name: "",
+    last_name: "",
   });
 
   const navigate = useNavigate();
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -47,104 +59,187 @@ const RegisterForm = () => {
     }
 
     try {
-      const roleToSend = formData.roles[0].toLowerCase();
+      setLoading(true);
+      setServerError("");
+      
       const payload = {
-        username: formData.username,
+        email: formData.email,
         password: formData.password,
-        roles: [roleToSend],
-        firstName: formData.firstName,
-        lastName: formData.lastName,
+        password2: formData.password2,
+        user_type: formData.user_type,
+        first_name: formData.first_name,
+        last_name: formData.last_name,
       };
-      if (roleToSend === "candidate") {
-        payload.age = parseInt(formData.age);
-        payload.cvUrl = formData.cvUrl;
-      } else if (roleToSend === "recruiter") {
-        payload.entreprise = formData.entreprise;
-      }
-      // Use axios from api.js
-      const { authAPI } = require('../api/api');
+
       const response = await authAPI.register(payload);
-      if (response.status !== 201 && response.status !== 200) {
+      
+      if (response.status === 201 || response.status === 200) {
+        navigate("/login");
+      } else {
         throw new Error(response.data?.message || "Registration failed");
       }
-      navigate("/login");
     } catch (err) {
-      setServerError(err.message);
+      if (err.response?.data) {
+        // Handle Django validation errors
+        const djangoErrors = err.response.data;
+        const newErrors = {};
+        
+        Object.keys(djangoErrors).forEach(key => {
+          if (Array.isArray(djangoErrors[key])) {
+            newErrors[key] = djangoErrors[key][0];
+          } else {
+            newErrors[key] = djangoErrors[key];
+          }
+        });
+        
+        setErrors(newErrors);
+      } else {
+        setServerError(err.message || "Registration failed");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="container">
-      <h2>Register</h2>
-      {serverError && <div className="error">{serverError}</div>}
-
-      <form onSubmit={handleSubmit}>
-        <input
-          type="text"
-          name="username"
-          placeholder="Username"
-          className="mt-1 p-2 border rounded w-full"
-          value={formData.username}
-          onChange={handleChange}
-        />
-        {errors.username && <div className="error">{errors.username}</div>}
-
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          className="mt-1 p-2 border rounded w-full"
-          value={formData.password}
-          onChange={handleChange}
-        />
-        {errors.password && <div className="error">{errors.password}</div>}
-
-        <select
-          name="user_type"
-          value={formData.user_type}
-          onChange={(e) =>
-            setFormData((prev) => ({
-              ...prev,
-              user_type: e.target.value,
-            }))
-          }
-          required
-        >
-          <option value="candidate">Candidate</option>
-          <option value="recruiter">Recruiter</option>
-        </select>
-
-        <input
-          type="text"
-          name="firstName"
-          placeholder="First Name"
-          className="mt-1 p-2 border rounded w-full"
-          value={formData.firstName}
-          onChange={handleChange}
-        />
-        {errors.firstName && <div className="error">{errors.firstName}</div>}
-
-        <input
-          type="text"
-          name="lastName"
-          placeholder="Last Name"
-          className="mt-1 p-2 border rounded w-full"
-          value={formData.lastName}
-          onChange={handleChange}
-        />
-        {errors.lastName && <div className="error">{errors.lastName}</div>}
-
-  {/* ...existing code... */}
-
-        <button type="submit" className="mt-3 p-2 bg-blue-500 text-white rounded">
+    <Container maxWidth="sm">
+      <Box
+        component={Paper}
+        elevation={3}
+        sx={{
+          marginTop: 8,
+          padding: 4,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+        }}
+      >
+        <Typography component="h1" variant="h5" gutterBottom>
           Register
-        </button>
-      </form>
+        </Typography>
 
-      <Link to="/login" className="link mt-2 block text-blue-600">
-        Already have an account? Login
-      </Link>
-    </div>
+        {serverError && (
+          <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
+            {serverError}
+          </Alert>
+        )}
+
+        <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1, width: '100%' }}>
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            id="email"
+            label="Email"
+            name="email"
+            autoComplete="email"
+            autoFocus
+            value={formData.email}
+            onChange={handleChange}
+            variant="outlined"
+            error={!!errors.email}
+            helperText={errors.email}
+          />
+
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            name="password"
+            label="Password"
+            type="password"
+            id="password"
+            autoComplete="new-password"
+            value={formData.password}
+            onChange={handleChange}
+            variant="outlined"
+            error={!!errors.password}
+            helperText={errors.password}
+          />
+
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            name="password2"
+            label="Confirm Password"
+            type="password"
+            id="password2"
+            autoComplete="new-password"
+            value={formData.password2}
+            onChange={handleChange}
+            variant="outlined"
+            error={!!errors.password2}
+            helperText={errors.password2}
+          />
+
+          <FormControl fullWidth margin="normal">
+            <InputLabel id="user-type-label">User Type</InputLabel>
+            <Select
+              labelId="user-type-label"
+              id="user_type"
+              name="user_type"
+              value={formData.user_type}
+              label="User Type"
+              onChange={handleChange}
+            >
+              <MenuItem value="candidate">Candidate</MenuItem>
+              <MenuItem value="recruiter">Recruiter</MenuItem>
+            </Select>
+          </FormControl>
+
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            name="first_name"
+            label="First Name"
+            id="first_name"
+            autoComplete="given-name"
+            value={formData.first_name}
+            onChange={handleChange}
+            variant="outlined"
+            error={!!errors.first_name}
+            helperText={errors.first_name}
+          />
+
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            name="last_name"
+            label="Last Name"
+            id="last_name"
+            autoComplete="family-name"
+            value={formData.last_name}
+            onChange={handleChange}
+            variant="outlined"
+            error={!!errors.last_name}
+            helperText={errors.last_name}
+          />
+
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            disabled={loading}
+            sx={{ mt: 3, mb: 2 }}
+          >
+            {loading ? 'Registering...' : 'Register'}
+          </Button>
+
+          <Button
+            component={Link}
+            to="/login"
+            fullWidth
+            variant="text"
+            sx={{ mt: 1 }}
+          >
+            Already have an account? Login
+          </Button>
+        </Box>
+      </Box>
+    </Container>
   );
 };
 

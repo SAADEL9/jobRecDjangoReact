@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import api from "../axiosConfig";
+import { jobAPI, authAPI } from "../api/api";
 import {
   Container,
   Box,
@@ -26,8 +26,7 @@ export default function OfferDetail() {
   const userId = localStorage.getItem("userId");
   useEffect(() => {
     if (!id) return;
-    api
-      .get(`/api/offers/${id}`)
+    jobAPI.getJob(id)
       .then((res) => setOffer(res.data))
       .catch((err) => {
         const message = err.response?.status === 404
@@ -39,24 +38,30 @@ export default function OfferDetail() {
   }, [id]);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("access_token");
     if (!token) return;
-    api.get('/api/user/me')
-      .then(res =>{ setCurrentUsername(res.data?.username || "") ;setCurrentid(res.data?.id)})
-      .catch(() => setCurrentUsername(""));
+    authAPI.getCurrentUser()
+      .then(res => {
+        setCurrentUsername(res.data.email || "");
+        setCurrentid(res.data.id);
+      })
+      .catch(() => {
+        setCurrentUsername("");
+        setCurrentid("");
+      });
   }, []);
 
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this offer?')) return;
     try {
-      await api.delete(`/api/recruiter/offers/${id}`);
+      await jobAPI.deleteJob(id);
       navigate('/'); // Redirect to home or offers list
     } catch (err) {
       setError('Failed to delete offer');
     }
   };
 const handleApply = async () => {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("access_token");
   if (!token) {
     navigate('/login');
     return;
@@ -66,9 +71,7 @@ const handleApply = async () => {
     return;
   }
   try {
-    await api.post(`/api/applications/apply`, null, {
-      params: { offerId: id, candidatId: currentId }
-    });
+    await jobAPI.applyToJob(id);
     alert("Application submitted successfully!");
   } catch (err) {
     const status = err.response?.status;
