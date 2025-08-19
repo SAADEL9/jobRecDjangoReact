@@ -21,8 +21,8 @@ export default function OfferDetail() {
   const [offer, setOffer] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [currentUsername, setCurrentUsername] = useState("");
-  const [currentId, setCurrentid] = useState("");
+  const [currentEmail, setCurrentEmail] = useState("");
+  const [currentId, setCurrentId] = useState(null);
   const userId = localStorage.getItem("userId");
   useEffect(() => {
     if (!id) return;
@@ -42,12 +42,12 @@ export default function OfferDetail() {
     if (!token) return;
     authAPI.getCurrentUser()
       .then(res => {
-        setCurrentUsername(res.data.email || "");
-        setCurrentid(res.data.id);
+        setCurrentEmail(res.data.email || "");
+        setCurrentId(res.data.id);
       })
       .catch(() => {
-        setCurrentUsername("");
-        setCurrentid("");
+        setCurrentEmail("");
+        setCurrentId(null);
       });
   }, []);
 
@@ -100,7 +100,7 @@ const handleApply = async () => {
 
   if (!offer) return null;
 
-  const isOwner = !!currentUsername && offer?.recruiter?.username === currentUsername;
+  const isOwner = !!currentId && offer?.posted_by?.id === currentId;
 
   return (
     <Container maxWidth="md" sx={{ mt: 4 }}>
@@ -110,8 +110,8 @@ const handleApply = async () => {
             {offer.title}
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            {offer.type && (
-              <Chip icon={<WorkIcon />} label={offer.type} color="primary" variant="outlined" />
+            {offer.job_type && (
+              <Chip icon={<WorkIcon />} label={offer.job_type.replace('_', ' ')} color="primary" variant="outlined" />
             )}
           </Box>
           <Box>
@@ -125,9 +125,9 @@ const handleApply = async () => {
                 {offer.company}
               </Typography>
             )}
-            {offer.recruiter?.username && (
+            {offer.posted_by?.email && (
               <Typography variant="body2" color="text.secondary">
-                Posted by: {offer.recruiter.username}
+                Posted by: {offer.posted_by.email}
               </Typography>
             )}
           </Box>
@@ -142,7 +142,9 @@ const handleApply = async () => {
               
               </div>
             )}
-            <Button onClick={handleApply} variant="contained">Apply</Button>
+            <Button onClick={handleApply} variant="contained" disabled={offer.has_applied || offer.is_expired}>
+              {offer.has_applied ? 'Already applied' : offer.is_expired ? 'Expired' : 'Apply'}
+            </Button>
           </Box>
         </Box>
       </Paper>

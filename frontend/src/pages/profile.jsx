@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { authAPI } from "../api/api";
-import axios from 'axios';
-import "../css/profile.css";
 import {
   Container,
   Box,
@@ -11,167 +9,101 @@ import {
   CircularProgress,
   Alert,
   Paper,
-  Grid
 } from '@mui/material';
 
 const Profile = () => {
-  const [profile, setProfile] = useState({});
-  const [role, setRole] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [selectedFile, setSelectedFile] = useState(null);
 
-  const token = localStorage.getItem("token");
-  const headers = { Authorization: `Bearer ${token}` };
+  useEffect(() => {
+    authAPI.getCurrentUser()
+      .then(res => setProfile(res.data))
+      .catch(() => setError('Failed to load profile'));
+  }, []);
 
-  useEffect(() => {
-    let userMeData = {};
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setProfile(prev => ({ ...prev, [name]: value }));
+  };
 
-    // Step 1: Fetch general user data first
-    axios
-      .get("/api/user/me", { headers })
-      .then((res) => {
-        const id = res.data?.id;
-        userMeData = res.data; // Store the general user data
-        console.log("User object from /api/user/me:", userMeData);
+  const handleFileChange = (e) => {
+    setSelectedFile(e.target.files?.[0] || null);
+  };
 
-        const rolesRaw = userMeData.roles;
-        const userRoles = Array.isArray(rolesRaw)
-          ? rolesRaw.map((r) => (typeof r === "string" ? r : r.name))
-          : [];
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!profile) return;
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append('first_name', profile.first_name || '');
+        formData.append('last_name', profile.last_name || '');
+        formData.append('email', profile.email || '');
+        if (profile.phone_number) formData.append('phone_number', profile.phone_number);
+        if (profile.bio) formData.append('bio', profile.bio);
+        if (profile.company) formData.append('company', profile.company);
+        if (profile.position) formData.append('position', profile.position);
+        formData.append('profile_picture', selectedFile);
+        await authAPI.updateProfile(formData);
+      } else {
+        const payload = {
+          first_name: profile.first_name || '',
+          last_name: profile.last_name || '',
+          email: profile.email || '',
+          phone_number: profile.phone_number || '',
+          bio: profile.bio || '',
+          company: profile.company || '',
+          position: profile.position || ''
+        };
+        await authAPI.updateProfile(payload);
+      }
+      setSuccess('Profile updated successfully');
+      setSelectedFile(null);
+    } catch (err) {
+      setError('Failed to update profile');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-        if (userRoles.includes("ROLE_CANDIDAT")) {
-          setRole("CANDIDAT");
-          // Step 2: Return a promise for the role-specific profile
-          return axios.get("/api/candidat/profile", { headers });
-        } else if (userRoles.includes("ROLE_RECRUITER")) {
-          setRole("RECRUITER");
-          return axios.get("/api/recruiter/profile", { headers });
-        } else {
-          throw new Error("Unknown role");
-        }
-      })
-      .then((res) => {
-        // Step 3: Combine both data sources before setting state
-        setProfile({ ...userMeData, ...res.data });
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Error loading profile:", err);
-        setLoading(false);
-      });
-  }, []);
+  if (!profile) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
-  const handleChange = (e) => {
-    setProfile({ ...profile, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = () => {
-    const url =
-      role === "CANDIDAT"
-        ? "/api/candidat/profile"
-        : "/api/recruiter/profile";
-
-    // If CANDIDAT and file is present, use FormData
-    if (role === "CANDIDAT" && profile.cvFile) {
-      const formData = new FormData();
-      formData.append("firstName", profile.firstName || "");
-      formData.append("lastName", profile.lastName || "");
-      formData.append("age", profile.age || "");
-      formData.append("cvFile", profile.cvFile);
-      formData.append("cvUrl", profile.cvUrl || "");
-      formData.append("username", profile.username || "");
-      axios
-        .post(url, formData, { headers: { ...headers, "Content-Type": "multipart/form-data" } })
-        .then(() => alert("Profile updated"))
-        .catch((err) => console.error("Error updating profile:", err));
-      return;
-    }
-
-    // Default: JSON
-    axios
-      .post(url, profile, { headers })
-      .then(() => alert("Profile updated"))
-      .catch((err) => console.error("Error updating profile:", err));
-  };
-
-  if (loading) return <p>Loading profile...</p>;
-
-  return (
-    <div className="profile-container">
-      <h2>{role} Profile</h2>
-      <div className="profile-details">
-        <span><b>Name:</b> {profile.firstName} {profile.lastName}</span>
-        <span><b>Username:</b> {profile.username}</span>
-        {role === "CANDIDAT" && (
-          <>
-            <span><b>Age:</b> {profile.age}</span>
-            <span><b>CV URL:</b> <a href={profile.cvUrl} target="_blank" rel="noopener noreferrer">{profile.cvUrl}</a></span>
-          </>
-        )}
-        {role === "RECRUITER" && (
-          <span><b>Entreprise:</b> {profile.entreprise}</span>
-        )}
-        <span><b>Role(s):</b> {Array.isArray(profile.roles) ? profile.roles.map(r => typeof r === "string" ? r : r.name).join(", ") : ""}</span>
-      </div>
-
-      <input
-        type="text"
-        name="firstName"
-        value={profile.firstName || ""}
-        onChange={handleChange}
-        placeholder="First Name"
-      />
-
-      <input
-        type="text"
-        name="lastName"
-        value={profile.lastName || ""}
-        onChange={handleChange}
-        placeholder="Last Name"
-      />
-
-      {/* CV Upload for CANDIDAT */}
-      {role === "CANDIDAT" && (
-        <>
-          <input
-            type="number"
-            name="age"
-            value={profile.age || ""}
-            onChange={handleChange}
-            placeholder="Age"
-          />
-          {/* Only show CV URL if no file is selected */}
-          {!profile.cvFile && (
-            <input
-              type="text"
-              name="cvUrl"
-              value={profile.cvUrl || ""}
-              onChange={handleChange}
-              placeholder="CV URL (or upload a file)"
-            />
-          )}
-          <input
-            type="file"
-            accept=".pdf,.doc,.docx"
-            onChange={e => setProfile({ ...profile, cvFile: e.target.files[0], cvUrl: undefined })}
-          />
-        </>
-      )}
-
-      {role === "RECRUITER" && (
-        <>
-          <input
-            type="text"
-            name="entreprise"
-            value={profile.entreprise || ""}
-            onChange={handleChange}
-            placeholder="Entreprise Name"
-          />
-        </>
-      )}
-
-      <button onClick={handleSubmit}>Save Profile</button>
-    </div>
-  );
+  return (
+    <Container maxWidth="sm" sx={{ mt: 4 }}>
+      <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>
+        <Typography variant="h5" gutterBottom>My Profile</Typography>
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+        <Box component="form" onSubmit={handleSubmit} display="flex" flexDirection="column" gap={2}>
+          <TextField label="First Name" name="first_name" value={profile.first_name || ''} onChange={handleChange} required fullWidth />
+          <TextField label="Last Name" name="last_name" value={profile.last_name || ''} onChange={handleChange} required fullWidth />
+          <TextField label="Email" name="email" type="email" value={profile.email || ''} onChange={handleChange} required fullWidth />
+          <TextField label="Phone Number" name="phone_number" value={profile.phone_number || ''} onChange={handleChange} fullWidth />
+          <TextField label="Bio" name="bio" value={profile.bio || ''} onChange={handleChange} fullWidth multiline minRows={3} />
+          {profile.user_type === 'recruiter' && (
+            <>
+              <TextField label="Company" name="company" value={profile.company || ''} onChange={handleChange} fullWidth />
+              <TextField label="Position" name="position" value={profile.position || ''} onChange={handleChange} fullWidth />
+            </>
+          )}
+          <input type="file" accept="image/*" onChange={handleFileChange} />
+          <Button type="submit" variant="contained" disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Button>
+        </Box>
+      </Paper>
+    </Container>
+  );
 };
 
 export default Profile;
