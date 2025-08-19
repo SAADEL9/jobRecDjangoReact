@@ -3,9 +3,9 @@
 
 import * as React from 'react';
 import { useState } from 'react';
-import axios from 'axios';
+import { authAPI } from '../api/api';
 import PropTypes from 'prop-types';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
@@ -15,8 +15,10 @@ import Container from '@mui/material/Container';
 import Paper from '@mui/material/Paper';
 
 export default function Login({ onLogin }) {
-  const [form, setForm] = useState({ username: '', password: '' });
+  const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -26,15 +28,29 @@ export default function Login({ onLogin }) {
     e.preventDefault();
     try {
       setError(null);
-      const res = await axios.post('http://localhost:8080/auth/login', form);
-      localStorage.setItem('token', res.data.token);
+      setLoading(true);
+      
+      const response = await authAPI.login(form);
+      
+      // Store tokens
+      localStorage.setItem('access_token', response.data.access);
+      localStorage.setItem('refresh_token', response.data.refresh);
+      
+      // Call the onLogin callback
       onLogin();
+      
+      // Navigate to home page
+      navigate('/');
     } catch (err) {
-      if (err.response?.data?.message) {
+      if (err.response?.data?.detail) {
+        setError(err.response.data.detail);
+      } else if (err.response?.data?.message) {
         setError(err.response.data.message);
       } else {
         setError('Login failed. Please check your credentials.');
       }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -66,12 +82,12 @@ export default function Login({ onLogin }) {
             margin="normal"
             required
             fullWidth
-            id="username"
-            label="Username"
-            name="username"
-            autoComplete="username"
+            id="email"
+            label="Email"
+            name="email"
+            autoComplete="email"
             autoFocus
-            value={form.username}
+            value={form.email}
             onChange={handleChange}
             variant="outlined"
           />
@@ -94,9 +110,10 @@ export default function Login({ onLogin }) {
             type="submit"
             fullWidth
             variant="contained"
+            disabled={loading}
             sx={{ mt: 3, mb: 2 }}
           >
-            Login
+            {loading ? 'Logging in...' : 'Login'}
           </Button>
 
           <Button

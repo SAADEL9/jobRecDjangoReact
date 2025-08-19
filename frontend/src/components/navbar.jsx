@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import api from '../axiosConfig';
+import { authAPI } from '../api/api';
 import {
   AppBar,
   Toolbar,
@@ -20,9 +20,9 @@ import Settings from '@mui/icons-material/Settings';
 import Logout from '@mui/icons-material/Logout';
 
 export default function Navbar() {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('access_token');
   const [isRecruiter, setIsRecruiter] = useState(false);
-  const [username, setUsername] = useState('');
+  const [userData, setUserData] = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
   const menuOpen = Boolean(menuAnchor);
   const navigate = useNavigate();
@@ -30,22 +30,23 @@ export default function Navbar() {
   useEffect(() => {
     if (!token) {
       setIsRecruiter(false);
-      setUsername('');
+      setUserData(null);
       return;
     }
-    api
-      .get('/api/user/me')
+    
+    // Get current user data
+    authAPI.getCurrentUser()
       .then((res) => {
-        const rolesRaw = res.data?.roles || [];
-        const roles = Array.isArray(rolesRaw)
-          ? rolesRaw.map((r) => (typeof r === 'string' ? r : r.name))
-          : [];
-        setIsRecruiter(roles.includes('ROLE_RECRUITER'));
-        setUsername(res.data?.username || '');
+        const user = res.data;
+        setUserData(user);
+        setIsRecruiter(user.user_type === 'recruiter');
       })
       .catch(() => {
         setIsRecruiter(false);
-        setUsername('');
+        setUserData(null);
+        // If token is invalid, clear it
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
       });
   }, [token]);
 
@@ -53,12 +54,16 @@ export default function Navbar() {
   const handleCloseMenu = () => setMenuAnchor(null);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    setUserData(null);
+    setIsRecruiter(false);
     handleCloseMenu();
     navigate('/login');
   };
 
-  const avatarLetter = username ? username.charAt(0).toUpperCase() : 'U';
+  const avatarLetter = userData?.first_name ? userData.first_name.charAt(0).toUpperCase() : 
+                      userData?.email ? userData.email.charAt(0).toUpperCase() : 'U';
 
   return (
     <AppBar position="static" color="default" elevation={1}>
@@ -139,15 +144,12 @@ export default function Navbar() {
               <MenuItem onClick={() => navigate('/profile')}>
                 <Avatar /> Profile
               </MenuItem>
-              <MenuItem onClick={() => navigate('/profile')}>
-                <Avatar /> My account
-              </MenuItem>
               <Divider />
               <MenuItem onClick={() => navigate('/applications')}>
                 <ListItemIcon>
                   <PersonAdd fontSize="small" />
                 </ListItemIcon>
-               my applications
+                My Applications
               </MenuItem>
               <MenuItem onClick={() => navigate('/profile')}>
                 <ListItemIcon>
