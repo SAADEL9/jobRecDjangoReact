@@ -1,0 +1,168 @@
+from rest_framework import generics, permissions, status, filters
+from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
+from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Count, Q
+from .models import Job, Application, SavedJob
+from .serializers import (
+    JobSerializer, JobCreateUpdateSerializer,
+    ApplicationSerializer, ApplicationUpdateSerializer,
+    SavedJobSerializer
+)
+from users.models import User
+
+class JobListCreateView(generics.ListCreateAPIView):
+    serializer_class = JobSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = {
+        'job_type': ['exact', 'in'],
+        'experience_level': ['exact', 'in'],
+        'company': ['exact', 'icontains'],
+        'location': ['exact', 'icontains'],
+        'is_active': ['exact'],
+        'posted_by': ['exact'],
+    }
+    search_fields = ['title', 'company', 'description', 'requirements', 'skills_required']
+    ordering_fields = ['created_at', 'updated_at', 'salary_min', 'salary_max']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        queryset = Job.objects.filter(is_active=True).annotate(
+            applications_count=Count('applications')
+        )
+        
+        # Filter out expired jobs unless explicitly requested
+        show_expired = self.request.query_params.get('show_expired', '').lower() == 'true'
+        if not show_expired:
+            queryset = queryset.filter(
+                Q(deadline__isnull=True) | Q(deadline__gte=timezone.now().date())
+            )
+        
+        # Filter by saved jobs for the current user
+        saved_only = self.request.query_params.get('saved_only', '').lower() == 'true'
+        if saved_only and self.request.user.is_authenticated:
+            saved_job_ids = self.request.user.saved_jobs.values_list('job_id', flat=True)
+            queryset = queryset.filter(id__in=saved_job_ids)
+        
+        # Filter by applications for the current user
+        my_applications = self.request.query_params.get('my_applications', '').lower() == 'true'
+        if my_applications and self.request.user.is_authenticated:
+            applied_job_ids = self.request.user.job_applications.values_list('job_id', flat=True)
+            queryset = queryset.filter(id__in=applied_job_ids)
+        
+        # Filter by jobs posted by the current user
+        my_posted_jobs = self.request.query_params.get('my_posted_jobs', '').lower() == 'true'
+        if my_posted_jobs and self.request.user.is_authenticated:
+            queryset = queryset.filter(posted_by=self.request.user)
+        
+        return queryset
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return JobCreateUpdateSerializer
+        return JobSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(posted_by=self.request.user)
+
+class JobRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Job.objects.all()
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    
+    def get_serializer_class(self):
+        if self.request.method in ['PUT', 'PATCH']:
+            return JobCreateUpdateSerializer
+        return JobSerializer
+    
+    def get_permissions(self):
+        if self.request.method in ['PUT', 'PATCH', 'DELETE']:
+            return [permissions.IsAuthenticated()]
+        return super().get_permissions()
+    
+    def perform_update(self, serializer):
+        if self.request.user != serializer.instance.posted_by:
+            self.permission_denied(
+                self.request,
+                message="You do not have permission to update this job.",
+                code=status.HTTP_403_FORBIDDEN
+            )
+        serializer.save()
+    
+    def perform_destroy(self, instance):
+        if self.request.user != instance.posted_by:
+            self.permission_denied(
+                self.request,
+                message="You do not have permission to delete this job.",
+                code=status.HTTP_403_FORBIDDEN
+            )
+        instance.delete()
+
+class ApplicationListCreateView(generics.ListCreateAPIView):
+    serializer_class = ApplicationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['status', 'job', 'applicant']
+    ordering_fields = ['applied_at', 'updated_at']
+    ordering = ['-applied_at']
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Application.objects.all()
+        
+        # If user is a recruiter, show applications for their posted jobs
+        if user.is_recruiter:
+            return queryset.filter(job__posted_by=user)
+        # If user is a candidate, show only their applications
+        return queryset.filter(applicant=user)
+    
+    def perform_create(self, serializer):
+        job = serializer.validated_data['job']
+        if Application.objects.filter(job=job, applicant=self.request.user).exists():
+            raise serializers.ValidationError("You have already applied to this job.")
+        serializer.save(applicant=self.request.user)
+
+class ApplicationRetrieveUpdateView(generics.RetrieveUpdateAPIView):
+    queryset = Application.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.request.method in ['PUT', 'PATCH']:
+            return ApplicationUpdateSerializer
+        return ApplicationSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_recruiter:
+            return Application.objects.filter(job__posted_by=user)
+        return Application.objects.filter(applicant=user)
+
+class SavedJobListCreateView(generics.ListCreateAPIView):
+    serializer_class = SavedJobSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        return SavedJob.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+class SavedJobDestroyView(generics.DestroyAPIView):
+    queryset = SavedJob.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'job_id'
+    
+    def get_queryset(self):
+        return SavedJob.objects.filter(user=self.request.user)
+    
+    def perform_destroy(self, instance):
+        if instance.user != self.request.user:
+            self.permission_denied(
+                self.request,
+                message="You do not have permission to remove this saved job.",
+                code=status.HTTP_403_FORBIDDEN
+            )
+        instance.delete()

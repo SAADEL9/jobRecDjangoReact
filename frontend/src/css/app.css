@@ -1,0 +1,108 @@
+/* General Body and Container Styles */
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif; /* Modern font */
+  background-color: #f0f2f5; /* Light grey background */
+  color: #333;
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 1200px; /* Wider container for better layout */
+  margin: 40px auto; /* More vertical margin */
+  padding: 30px;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); /* Softer, larger shadow */
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  color: #2c3e50; /* Darker heading color */
+  margin-bottom: 15px;
+  font-weight: 600;
+}
+
+/* Form Elements */
+form input, form select, .search-input {
+  width: 100%;
+  padding: 12px 15px; /* Slightly more padding */
+  margin-bottom: 15px;
+  border-radius: 8px; /* More rounded corners */
+  border: 1px solid #dcdcdc; /* Lighter border */
+  font-size: 1rem;
+  transition: all 0.3s ease; /* Smooth transition for focus */
+}
+
+form input:focus, form select:focus, .search-input:focus {
+  border-color: #007bff; /* Blue focus border */
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25); /* Focus shadow */
+  outline: none;
+}
+
+/* Buttons */
+button, .search-button {
+  width: 100%;
+  padding: 12px 15px;
+  background-color: #007bff; /* Primary blue */
+  border: none;
+  color: white;
+  font-weight: 600; /* Bolder font */
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease; /* Smooth transitions */
+}
+
+button:hover, .search-button:hover {
+  background-color: #0056b3; /* Darker blue on hover */
+  transform: translateY(-2px); /* Slight lift effect */
+}
+
+button:active, .search-button:active {
+  transform: translateY(0); /* Press effect */
+}
+
+/* Links */
+.link {
+  display: block;
+  margin-top: 15px;
+  text-align: center;
+  color: #007bff;
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.link:hover {
+  color: #0056b3;
+  text-decoration: underline;
+}
+
+/* Error Messages */
+.error {
+  color: #dc3545; /* Red for errors */
+  font-size: 0.9rem;
+  margin-top: -10px;
+  margin-bottom: 10px;
+}
+
+/* Search Bar Specific Styles */
+.search-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
+  padding: 20px;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+.search-bar .search-input {
+  flex-grow: 1;
+  margin-bottom: 0; /* Remove bottom margin from input in search bar */
+}
+
+.search-bar .search-button {
+  width: auto; /* Auto width for button in search bar */
+  padding: 12px 25px;
+  flex-shrink: 0;
+}
