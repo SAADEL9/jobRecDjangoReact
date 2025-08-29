@@ -20,7 +20,6 @@ import Settings from '@mui/icons-material/Settings';
 import Logout from '@mui/icons-material/Logout';
 
 export default function Navbar() {
-  const token = localStorage.getItem('access_token');
   const [isRecruiter, setIsRecruiter] = useState(false);
   const [userData, setUserData] = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
@@ -28,27 +27,37 @@ export default function Navbar() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!token) {
-      setIsRecruiter(false);
-      setUserData(null);
-      return;
-    }
-    
-    // Get current user data
-    authAPI.getCurrentUser()
-      .then((res) => {
-        const user = res.data;
-        setUserData(user);
-        setIsRecruiter(user.user_type === 'recruiter');
-      })
-      .catch(() => {
+    const checkAuth = () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
         setIsRecruiter(false);
         setUserData(null);
-        // If token is invalid, clear it
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-      });
-  }, [token]);
+        return;
+      }
+      
+      // Get current user data
+      authAPI.getCurrentUser()
+        .then((res) => {
+          console.log('Current user:', res.data);
+          const user = res.data;
+          setUserData(user);
+          setIsRecruiter(user.user_type === 'recruiter');
+        })
+        .catch((error) => {
+          console.error('Error fetching user:', error);
+          setIsRecruiter(false);
+          setUserData(null);
+          // If token is invalid, clear it
+          if (error.response?.status === 401) {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            navigate('/login');
+          }
+        });
+    };
+
+    checkAuth();
+  }, [navigate]);
 
   const handleOpenMenu = (event) => setMenuAnchor(event.currentTarget);
   const handleCloseMenu = () => setMenuAnchor(null);
@@ -66,7 +75,7 @@ export default function Navbar() {
                       userData?.email ? userData.email.charAt(0).toUpperCase() : 'U';
 
   return (
-    <AppBar position="static" color="default" elevation={1}>
+    <AppBar position="sticky" color="default" elevation={1}>
       <Toolbar sx={{ display: 'flex', gap: 2 }}>
         <Typography
           variant="h6"
@@ -77,20 +86,24 @@ export default function Navbar() {
           Job<Typography component="span" color="primary" sx={{ fontWeight: 800 }}>Rec</Typography>
         </Typography>
 
-        {token && isRecruiter && (
-          <Button component={Link} to="/offers/create" variant="contained" color="primary">
-            Create Job Offer
-          </Button>
-        )}
-
-        {!token && (
+        {userData ? (
+          <>
+            {isRecruiter && (
+              <Button component={Link} to="/offers/create" variant="contained" color="primary">
+                Create Job Offer
+              </Button>
+            )}
+            <Button component={Link} to="/offers" color="inherit">Browse Jobs</Button>
+            <Button component={Link} to="/applications" color="inherit">Applications</Button>
+          </>
+        ) : (
           <>
             <Button component={Link} to="/register" color="primary">Register</Button>
             <Button component={Link} to="/login" variant="contained" color="primary">Login</Button>
           </>
         )}
 
-        {token && (
+        {userData && (
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Tooltip title="Account settings">
               <IconButton

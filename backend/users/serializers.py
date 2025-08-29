@@ -9,7 +9,7 @@ User = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'email', 'first_name', 'last_name', 'user_type', 'phone_number', 'profile_picture', 'bio', 'company', 'position')
+        fields = ('id', 'email', 'first_name', 'last_name', 'user_type', 'phone_number', 'profile_picture', 'cv', 'bio', 'company', 'position')
         read_only_fields = ('id', 'user_type')
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -62,7 +62,7 @@ class UpdateUserProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('first_name', 'last_name', 'email', 'phone_number', 'profile_picture', 'bio', 'company', 'position')
+        fields = ('first_name', 'last_name', 'email', 'phone_number', 'profile_picture', 'cv', 'bio', 'company', 'position')
         extra_kwargs = {
             'first_name': {'required': True},
             'last_name': {'required': True},
@@ -87,5 +87,8 @@ class UpdateUserProfileSerializer(serializers.ModelSerializer):
         if 'profile_picture' in validated_data:
             instance.profile_picture = validated_data['profile_picture']
         
+        if 'cv' in validated_data:
+            instance.cv = validated_data['cv']
+
         instance.save()
         return instance

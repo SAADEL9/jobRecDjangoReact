@@ -10,10 +10,15 @@ from .serializers import (
     ApplicationSerializer, ApplicationUpdateSerializer,
     SavedJobSerializer
 )
+from jobs.pagination import StandardResultsSetPagination
+from .recommendations import get_job_recommendations
 from users.models import User
+
+
 
 class JobListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = {
         'job_type': ['exact', 'in'],
@@ -162,3 +167,23 @@ class SavedJobDestroyView(generics.DestroyAPIView):
                 code=status.HTTP_403_FORBIDDEN
             )
         instance.delete()
+
+from rest_framework import generics, permissions
+from .models import Job
+from .serializers import JobSerializer
+from .recommendations import get_job_recommendations
+from django.db.models import Case, When
+
+class JobRecommendationView(generics.ListAPIView):
+    serializer_class = JobSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None  # you can later enable it safely
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_candidate:
+            recommended_jobs = get_job_recommendations(user)
+            job_ids = [job.id for job in recommended_jobs]
+            preserved_order = Case(*[When(id=pk, then=pos) for pos, pk in enumerate(job_ids)])
+            return Job.objects.filter(id__in=job_ids).order_by(preserved_order)
+        return Job.objects.none()

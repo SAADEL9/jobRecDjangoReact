@@ -54,7 +54,7 @@ button, .search-button {
 }
 
 button:hover, .search-button:hover {
-  background-color: #0056b3; /* Darker blue on hover */
+  background-color: #98c3f1; /* Darker blue on hover */
   transform: translateY(-2px); /* Slight lift effect */
 }
 
@@ -73,7 +73,7 @@ button:active, .search-button:active {
 }
 
 .link:hover {
-  color: #0056b3;
+  color: #5178a1;
   text-decoration: underline;
 }
 

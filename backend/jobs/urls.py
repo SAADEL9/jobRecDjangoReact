@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     # Job endpoints
     path('', views.JobListCreateView.as_view(), name='job-list'),
+    path('recommendations/', views.JobRecommendationView.as_view(), name='job-recommendations'),
     path('<int:pk>/', views.JobRetrieveUpdateDestroyView.as_view(), name='job-detail'),
     
     # Application endpoints
